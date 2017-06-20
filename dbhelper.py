@@ -30,6 +30,16 @@ def to_64bit(number):
     return ctypes.c_long(number).value
 
 
+def try_execute(statement, tuple):
+    '''If inserted too frequently, sometimes timeout exception will be thrown, just retry.
+    This function is a wrap up for auto-retry'''
+    try:
+        SESSION.execute(statement, tuple)
+    except Exception:
+        print 'execute not successful, retry!'
+        try_execute(statement, tuple)
+
+
 def insert_by_covering(cellid, feature, is_cut):
     '''Given the covering region, store the given feature into the database'''
     osm_id = __get_osm_id(feature)
@@ -38,10 +48,10 @@ def insert_by_covering(cellid, feature, is_cut):
     feature_str = geojson.dumps(feature)
 
     # insert a null in current timestamp as a placeholder. For hist query
-    insert_by_covering.handle0 = SESSION.execute_async(
-        PREPARED_INSERT, (cellid.level(), s2_id, uuid.uuid1(), osm_id, None, is_cut))
-    insert_by_covering.handle1 = SESSION.execute_async(
-        PREPARED_INSERT, (cellid.level(), s2_id, HIGHEST_TIME_UUID, osm_id, feature_str, is_cut))
+    try_execute(PREPARED_INSERT,
+                (cellid.level(), s2_id, uuid.uuid1(), osm_id, None, is_cut))
+    try_execute(PREPARED_INSERT,
+                (cellid.level(), s2_id, HIGHEST_TIME_UUID, osm_id, feature_str, is_cut))
 
 
 def insert_by_bboxes(bboxes, feature):
@@ -62,8 +72,7 @@ def insert_by_cut_feature(cut_feature_set):
 def insert_master(feature):
     '''Insert the feature into the master'''
     osm_id = __get_osm_id(feature)
-    insert_master.handle = SESSION.execute_async(
-        PREPARED_MASTER_INSERT, (osm_id, geojson.dumps(feature)))
+    try_execute(PREPARED_MASTER_INSERT, (osm_id, geojson.dumps(feature)))
 
 
 def __get_osm_id(feature):
@@ -83,15 +92,18 @@ def __initialize():
 
 
 def __before_exit():
-    #TODO: solve timeout issue
+    # TODO: add back execute_async and solve timeout issue
+    # now uses execute instead of execute_async.
+    # use with try_execute guarantees the execution will eventually
+    # successfull, but trade in speed.
     '''Wait to ensure that all insertion has been into the table'''
     print 'Waiting for database to finish up...'
-    if insert_by_covering.handle0 is not None:
-        insert_by_covering.handle0.result()
-    if insert_by_covering.handle1 is not None:
-        insert_by_covering.handle1.result()
-    if insert_master.handle is not None:
-        insert_master.handle.result()
+    # if insert_by_covering.handle0 is not None:
+    #     insert_by_covering.handle0.result()
+    # if insert_by_covering.handle1 is not None:
+    #     insert_by_covering.handle1.result()
+    # if insert_master.handle is not None:
+    #     insert_master.handle.result()
     CLUSTER.shutdown()
 
 
