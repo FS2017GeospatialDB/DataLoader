@@ -1,1 +1,4 @@
 *.pyc
+
+# ignore each person's config file. 
+*.yml
