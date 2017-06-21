@@ -29,7 +29,7 @@ def __load_or_default(module, key, default_value, cfg):
 
 
 def __sanitize(cfg):
-    # TODO: expend and more regid sanitize
+    # TODO: expend and more rigid sanitize
     # sanitize geohelper
     cfg = __load_or_default(
         'geohelper', 'base level', DEFAULT_BASE_LEVEL, cfg)
@@ -42,9 +42,13 @@ def __sanitize(cfg):
 
 def __try_load(filename):
     if not __try_load.cache.has_key(filename):
-        cfg_file = open(filename, 'rb').read()
-        cfg = yaml.load(cfg_file)
-        __try_load.cache[filename] = __sanitize(cfg)
+        try:
+            cfg_file = open(filename, 'rb').read()
+            cfg = yaml.load(cfg_file)
+            __try_load.cache[filename] = __sanitize(cfg)
+        except Exception:
+            print '''config file not found! Make you have config.yml, or specify a config file'''
+            sys.exit(1)
     return __try_load.cache[filename]
 
 
